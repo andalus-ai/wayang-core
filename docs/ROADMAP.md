@@ -24,6 +24,7 @@
 - [ ] Publish first explicitly experimental model/schema artifacts.
 
 ## C3 — Plugin API and SPI
+- [x] Propose the author API versus host discovery/activation SPI boundary (see [ADR-0002](adr/ADR-0002-plugin-author-api-boundary.md) and [design](plugin-api/PLUGIN-AUTHOR-API-DESIGN.md)); implementation remains gated on the incomplete C1 source audit.
 - [ ] Extract a minimal plugin author API.
 - [ ] Separate author API from host-specific discovery SPI.
 - [ ] Define contribution inventory and lifecycle capability declarations.
