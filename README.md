@@ -58,3 +58,18 @@ Wayang and Wayang Console depend on compatible published Core artifacts. Core mu
 This repository has just been initialized as the shared architecture and contract boundary. The documents describe the intended target and migration plan. They do not claim that all listed APIs, Maven artifacts, protocol schemas, or SDKs have been implemented or released.
 
 Start with [architecture](docs/ARCHITECTURE.md), [module strategy](docs/MODULE-STRATEGY.md), and [roadmap](docs/ROADMAP.md).
+
+
+## First implementation slice
+
+The initial Maven reactor contains `wayang-core-model`, a Java 17, JDK-only production artifact. It provides immutable namespaced IDs, SemVer values, open component-kind tokens, component ports and descriptors, execution capability declarations, plugin dependencies and plugin descriptors.
+
+The model deliberately does not implement manifest parsing, JSON serialization, signature verification, permission enforcement, plugin installation, runtime discovery or execution placement. Those belong to schema/tooling or host applications. Existing Wayang and Console contracts remain authoritative until compatibility fixtures and consumer migration are complete.
+
+Build locally with:
+
+```bash
+mvn --batch-mode verify
+```
+
+The Maven CI workflow runs the same verification on pushes and pull requests.
