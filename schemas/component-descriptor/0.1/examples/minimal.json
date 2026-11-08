@@ -1,0 +1,20 @@
+{
+  "id": "acme.csv-reader",
+  "version": "1.0.0",
+  "kind": "action",
+  "displayName": "CSV Reader",
+  "inputs": [
+    { "name": "source", "schemaRef": "https://example.org/schemas/file-ref-1.0.json", "required": true }
+  ],
+  "outputs": [
+    { "name": "rows", "schemaRef": "https://example.org/schemas/row-array-1.0.json", "required": true }
+  ],
+  "execution": {
+    "supportedModes": ["EMBEDDED", "REMOTE"],
+    "stateModel": "STATELESS",
+    "payloadPortable": true,
+    "cancellationSupported": true,
+    "idempotent": true
+  },
+  "metadata": { "acme:category": "data" }
+}
