@@ -9,6 +9,7 @@
 - [ ] Record ADR for artifact coordinates, Java baseline and schema tooling.
 
 ## C1 — Contract inventory and extraction plan
+- [x] Start source-backed inventory of existing Wayang and Console contracts (initial, incomplete draft: [CONTRACT-INVENTORY.md](inventory/CONTRACT-INVENTORY.md)).
 - [ ] Inventory component/plugin/extension contracts in Wayang.
 - [ ] Inventory runtime management protobuf and Console DTOs.
 - [ ] Classify each type: shared contract, Wayang implementation, Console implementation, or obsolete.
