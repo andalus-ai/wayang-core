@@ -21,6 +21,8 @@ public record NamespacedId(String value) implements Comparable<NamespacedId> {
         }
     }
 
-    public static NamespacedId of(String value) { return new NamespacedId(value); }\n\n    @Override public int compareTo(NamespacedId other) { return value.compareTo(other.value); }
+    public static NamespacedId of(String value) { return new NamespacedId(value); }
+
+    @Override public int compareTo(NamespacedId other) { return value.compareTo(other.value); }
     @Override public String toString() { return value; }
 }
