@@ -1,6 +1,6 @@
 # C1 — Existing contract inventory
 
-- **Status:** Initial source-backed inventory; incomplete until all Java implementations and consumers are traced.
+- **Status:** Source audit in progress; Wayang runtime SPI and executor-binding contracts traced, but consumer usages, manifest serialization and Console adapters remain open.
 - **Reviewed:** 2026-11-08
 - **Repositories:** `andalus-ai/wayang`, `andalus-ai/wayang-console`
 
@@ -76,3 +76,99 @@ It carries runtime identity, runtime/deployment/environment versions, supported 
 ## C1 exit criteria
 
 C1 is complete only when all open questions above are resolved or explicitly deferred with rationale, source usages are traced, and golden fixtures cover current JSON/protobuf interchange. This initial inventory is a starting point, not a completed extraction audit.
+
+
+## Source audit — Wayang runtime plugin and execution boundary
+
+Reviewed directly from the Wayang `main` source tree on 2026-11-08. These observations are source-backed and supersede the earlier path-level placeholders above.
+
+| Type | Exact source path | Observed public contract / behavior | Ownership |
+|---|---|---|---|
+| `WayangExtension` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/WayangExtension.java` | Interface with `id()`, profile `requires()`, and default contribution methods for connectors, pollers, webhook providers, domain handlers, component descriptors and execution capabilities | Wayang host SPI |
+| `Extensions` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/Extensions.java` | `load(Profile)` delegates to `load(ClassLoader, Profile)`; uses `ServiceLoader.load(WayangExtension.class, cl)`; `of(...)` rejects duplicate extension IDs and filters by profile features | Wayang discovery/bootstrap |
+| `ComponentDescriptor` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentDescriptor.java` | Java record carrying namespaced ID, version, kind, executor type, description, required features, dependencies, isolation level, capabilities, display name, category, icon, config schema and UI hints; retains a source-compatible 9-argument constructor | Shared metadata candidate; do not move runtime enum dependencies blindly |
+| `ComponentRegistry` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentRegistry.java` | Profile-scoped read-only registry; merges built-ins and extension descriptors; rejects duplicate IDs; resolves deterministic dependency-first closure and rejects unavailable/incompatible dependencies and cycles | Wayang implementation |
+| `ComponentExecutor` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutor.java` | `executorId()` and `execute(ExecutionRequest)`; documents that runtime retry, timeout, cancellation and persistence policy are not delegated to the executor | Wayang execution SPI |
+| `ComponentExecutorRegistry` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutorRegistry.java` | Immutable component-ID-to-executor dispatch map; missing executor returns a rejected result | Wayang implementation |
+| `ComponentExecutorCatalog` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutorCatalog.java` | Resolves component closure, then requires exactly one binding per resolved component and validates component version plus executor family; rejects extra, duplicate and missing bindings; explicitly does not load classes or install artifacts | Wayang release/runtime validation |
+| `PluginManifest` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/PluginManifest.java` | Immutable record with namespaced plugin ID, SemVer version, major.minor API version, publisher, runtime compatibility, non-empty component list, plugin dependencies, permission set and optional license; nested provided-component and dependency records | Shared manifest candidate; retain Wayang validator/orchestration |
+| `ComponentExecutionCapabilities` | `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutionCapabilities.java` | Runtime deployment capability declaration; inspect the complete type and validator before extracting | Candidate value model; validation stays in Wayang |
+
+### Concrete architectural consequences
+
+1. **Do not replace `WayangExtension` with `PluginDescriptorProvider`.** The former is a broad host SPI with executable handler/provider contributions; the latter is only a proposed metadata author API. They are not equivalent.
+2. **Do not move `ComponentExecutor`, `ComponentExecutorRegistry` or `ComponentExecutorCatalog` into Core as-is.** They depend on Wayang execution request/result types and host semantics. A future portable worker protocol should be a separate language-neutral contract, not a renamed Java executor interface.
+3. **The current metadata registry is not a plugin manager.** `ComponentRegistry` resolves metadata and dependency closure; `ComponentExecutorCatalog` validates already-supplied bindings. Neither installs artifacts, creates classloaders, starts isolated processes or places remote workers.
+4. **Current ServiceLoader behavior is startup discovery.** `Extensions.load` creates a deployment snapshot. It is not evidence of safe runtime hot install/uninstall, nor does it establish Quarkus native support for arbitrary runtime providers.
+5. **Preserve the legacy extension API during migration.** The safe first adapter direction is legacy `WayangExtension` -> Core metadata projection, with host-owned execution handlers remaining attached to the legacy extension. Do not require existing extensions to implement a second provider interface.
+6. **Keep deployment mode explicit.** The existing descriptor has isolation levels `IN_PROCESS`, `SEPARATE_PROCESS`, `CONTAINER` and `REMOTE`; the separate capability model should be audited before mapping these to embedded, isolated-local, distributed and cloud-native execution.
+
+### Source paths inspected
+
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/WayangExtension.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/Extensions.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentDescriptor.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentRegistry.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutor.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutorRegistry.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutorCatalog.java`
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/PluginManifest.java`
+
+### Remaining audit gaps
+
+- [ ] Trace every construction and consumer of `WayangExtension`, `Extensions`, `ComponentDescriptor` and executor bindings across runtime, examples and tests.
+- [ ] Inspect `ComponentExecutionCapabilities` and its registry/validator end-to-end.
+- [ ] Inspect manifest parser/validator and JSON serialization implementation; do not infer JSON shape from Java record fields.
+- [ ] Inspect `META-INF/services` registrations and packaging behavior.
+- [ ] Inspect Console management client/server adapters and generated protobuf configuration.
+- [ ] Add characterization fixtures before declaring the Core schema or Java model wire-compatible.
+
+
+
+## Follow-up audit — capabilities, manifest validation and real provider registration
+
+The repository's recursive Git tree and targeted source/test inspection found the following additional evidence.
+
+### Execution capability contract
+
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutionCapabilities.java` declares an exact component ID/version, supported execution modes, state model, portable-payload flag, cancellation/idempotency flags, optional affinity key, required capabilities and resource hints.
+- Its constructor rejects empty modes, requires an affinity key only for `AFFINE` state, and requires portable payloads for `REMOTE` and `CLOUD_NATIVE`.
+- `ComponentExecutionCapabilityRegistry.of(...)` verifies that every declaration references an available component at the exact version and rejects duplicate declarations.
+- Missing declarations preserve legacy embedded behavior only; they do not imply remote support. This is explicitly covered by `ComponentExecutionCapabilitiesTest`.
+
+**Extraction implication:** the immutable declaration is a strong Core model candidate. The registry's relationship to Wayang's profile-scoped component catalog remains host behavior. Keep the distinction between declared capability and authorization/placement decision.
+
+### Manifest validation and schema mapping
+
+- `PluginManifestValidator.validateComponents(...)` compares the manifest's declared component ID/version set with supplied `ComponentDescriptor` values, rejects duplicates and mismatches, and returns the supplied descriptors.
+- The validator explicitly documents that this is a consistency check, not signature verification.
+- `wayang-runtime/src/main/resources/schema/wayang-plugin-manifest.schema.json` defines JSON Schema Draft 2020-12 with ID `https://wayang.ai/schemas/plugin-manifest-1.0.json`. Its wire shape is nested as `apiVersion`, `kind`, `metadata` and `spec`.
+- The Java `PluginManifest` record is a flattened in-memory model with fields such as `id`, `version`, `publisher`, `runtimeCompatibility`, `components`, `dependencies` and `permissions`.
+
+**Critical compatibility finding:** the Java record field layout is not the JSON schema layout. Do not serialize the record directly by field name and assume it implements the manifest schema. Core extraction must preserve the schema as canonical and define/test an explicit mapper. Do not change the existing schema ID or nesting as part of a refactor.
+
+### Concrete ServiceLoader provider
+
+- `wayang-multimodal/src/main/resources/META-INF/services/tech.kayys.wayang.runtime.WayangExtension` registers `tech.kayys.wayang.multimodal.MultimodalExtension`.
+- `wayang-multimodal/src/main/java/tech/kayys/wayang/multimodal/MultimodalExtension.java` implements `WayangExtension`, requires the MEDIA profile feature, contributes connector implementations and contributes four component descriptors.
+- Its connector contribution constructs `UrlGuard` and `MediaStore` using environment configuration. This is executable host contribution behavior, not pure metadata authoring.
+
+This is direct evidence that `WayangExtension` cannot be reduced to a descriptor provider without losing runtime contributions. Any adapter must preserve connector/handler contributions and only project the metadata subset to Core.
+
+### Characterization tests located
+
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/PluginManifestTest.java` covers manifest validation, duplicate inventory, SemVer and permission validation, plus manifest-to-descriptor inventory consistency.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentRegistryTest.java` covers dependency closure, profile filtering, duplicate IDs, cycles, extension metadata contribution and built-in catalog composition.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentExecutorCatalogTest.java` covers exact executor binding, missing dependency executors, version/family mismatch and unselected/duplicate bindings.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentExecutionCapabilitiesTest.java` covers remote payload portability, affinity, exact component version, duplicate declarations and missing metadata behavior.
+
+These are existing source tests, not tests run as part of this documentation update.
+
+### Updated remaining audit gaps
+
+- [ ] Trace every construction and consumer of extension/descriptor/executor types beyond the test coverage and multimodal provider identified above.
+- [ ] Inspect the concrete manifest parser and serialization mapper (if present), plus the schema-validation invocation path.
+- [ ] Inspect all service registration files and verify provider loading in packaged JVM and Quarkus native builds.
+- [ ] Inspect Console management client/server adapters and generated protobuf configuration.
+- [ ] Add JSON golden fixtures that prove the Java model maps to the nested v1 manifest schema.
+- [ ] Add a Core/Wayang consumer compatibility test before extracting any public type.
