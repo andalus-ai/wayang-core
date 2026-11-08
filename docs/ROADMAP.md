@@ -1,39 +1,59 @@
 # Wayang Core roadmap
 
-> Status: implementation in progress. Checkboxes represent verified repository state, not intention.
+> Status: proposed. The repository is bootstrapped; phases are not complete until code, tests and consumer verification exist.
 
 ## C0 — Repository and architecture foundation
 - [x] Establish shared Core repository and ownership boundary.
 - [x] Define dependency direction and initial contract families.
 - [ ] Add contribution guide, license policy and release policy.
-- [x] Propose initial Maven coordinates and Java 17 baseline in [ADR-0002](decisions/ADR-0002-core-model-java-baseline.md); pending consumer verification.
+- [ ] Record ADR for artifact coordinates, Java baseline and schema tooling.
 
 ## C1 — Contract inventory and extraction plan
 - [x] Start source-backed inventory of existing Wayang and Console contracts (initial, incomplete draft: [CONTRACT-INVENTORY.md](inventory/CONTRACT-INVENTORY.md)).
-- [ ] Complete Java source and usage tracing.
-- [ ] Add serialization characterization fixtures for existing manifest and management protocol.
+- [ ] Inventory component/plugin/extension contracts in Wayang.
+- [ ] Inventory runtime management protobuf and Console DTOs.
+- [ ] Classify each type: shared contract, Wayang implementation, Console implementation, or obsolete.
+- [ ] Add serialization characterization fixtures before moving public types.
+- [ ] Identify semantic duplicates; do not merge types merely because names match.
 
 ## C2 — Core model and schemas
-- [x] Implement initial immutable component model in `wayang-core-model`.
-- [ ] Implement plugin manifest and contribution model after current Wayang serialization fixtures.
-- [ ] Define compatibility range grammar and schema contracts.
-- [ ] Add JSON Schema, canonical examples and golden fixtures.
-- [ ] Verify model invariants against current Wayang component descriptors.
+- [ ] Introduce namespaced identifiers, version types and stable component/plugin descriptors.
+- [ ] Define plugin manifest and component descriptor schemas.
+- [ ] Define capability vocabulary, permission model and compatibility metadata.
+- [ ] Add schema validation and golden fixtures.
+- [ ] Publish first explicitly experimental model/schema artifacts.
 
 ## C3 — Plugin API and SPI
-- [ ] Extract minimal plugin author API.
+- [ ] Extract a minimal plugin author API.
 - [ ] Separate author API from host-specific discovery SPI.
-- [ ] Define lifecycle and contribution contracts.
-- [ ] Preserve Wayang ServiceLoader compatibility.
+- [ ] Define contribution inventory and lifecycle capability declarations.
+- [ ] Provide a sample plugin and conformance tests.
+- [ ] Preserve Wayang ServiceLoader compatibility during migration.
 
 ## C4 — Management contracts
-- [ ] Move canonical management protocol only after protobuf golden fixtures and consumer adapter inventory.
+- [ ] Move canonical runtime management protocol source into Core.
+- [ ] Cover enrollment, registration, heartbeat, inventory, typed commands and acknowledgements.
+- [ ] Define compatibility negotiation and additive evolution rules.
+- [ ] Generate/consume server and client types from the same source.
+- [ ] Keep Console persistence and application services local.
 
 ## C5 — Worker contracts
-- [ ] Define language-neutral invocation/result/error contract and conformance fixtures.
+- [ ] Define language-neutral component invocation/result/error envelope.
+- [ ] Specify deadline, cancellation, idempotency, duplicate delivery and payload limits.
+- [ ] Define worker registration, capability negotiation, health and graceful drain.
+- [ ] Add protocol conformance fixtures and testkit.
 
 ## C6 — Consumer migration
-- [ ] Migrate Wayang and Console only after compatibility characterization and independent build verification.
+- [ ] Migrate Wayang contracts to Core with deprecated compatibility facades where necessary.
+- [ ] Migrate Console management contracts to Core without importing Wayang runtime modules.
+- [ ] Add cross-repository compatibility CI.
+- [ ] Publish a release matrix for Core, Wayang and Console.
+
+## C7 — SDK and ecosystem
+- [ ] Java plugin SDK and testkit.
+- [ ] Python/Go worker SDKs only when concrete remote worker use cases exist.
+- [ ] Plugin package validator and signing/provenance tooling.
+- [ ] Compatibility tooling for third-party plugin authors.
 
 ## Release gates
-No stable release until API/schema review, unit and conformance tests, compatibility fixtures, Wayang and Console consumer verification, migration notes, release matrix, checksums, SBOM and provenance are complete.
+A Core release is not ready merely because code compiles. Require API/schema review; unit and schema conformance tests; compatibility fixtures against the previous supported release; consumer build/test verification in Wayang and Console; migration notes and compatibility matrix; artifact checksums, SBOM and provenance.
