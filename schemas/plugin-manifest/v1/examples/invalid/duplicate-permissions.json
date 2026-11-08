@@ -1,0 +1,16 @@
+{
+  "apiVersion": "1.0",
+  "kind": "Plugin",
+  "metadata": {
+    "id": "acme.csv-suite",
+    "version": "1.0.0",
+    "publisher": "Acme"
+  },
+  "spec": {
+    "runtimeCompatibility": ">=0.0.1",
+    "provides": {
+      "components": [{ "id": "acme.csv-reader", "version": "1.0.0" }]
+    },
+    "permissions": ["filesystem:read", "filesystem:read"]
+  }
+}
