@@ -1,6 +1,6 @@
 # Wayang Core roadmap
 
-> Status: proposed. The repository is bootstrapped; phases are not complete until code, tests and consumer verification exist.
+> Status: proposed. Initial model and schema work exists, but phases are not complete until source inventory, code, tests and consumer verification are complete.
 
 ## C0 — Repository and architecture foundation
 - [x] Establish shared Core repository and ownership boundary.
@@ -17,10 +17,10 @@
 - [ ] Identify semantic duplicates; do not merge types merely because names match.
 
 ## C2 — Core model and schemas
-- [ ] Introduce namespaced identifiers, version types and stable component/plugin descriptors.
-- [ ] Define plugin manifest and component descriptor schemas.
-- [ ] Define capability vocabulary, permission model and compatibility metadata.
-- [ ] Add schema validation and golden fixtures.
+- [x] Introduce namespaced identifiers, version types and stable component/plugin descriptors (initial Java model exists; API remains experimental).
+- [x] Define plugin manifest and component descriptor schemas (manifest v1 is a compatibility copy; component schema remains proposed).
+- [x] Define initial capability vocabulary, permission declarations and compatibility metadata.
+- [x] Add schema validation and golden fixtures for the legacy plugin manifest and proposed component descriptor.
 - [ ] Publish first explicitly experimental model/schema artifacts.
 
 ## C3 — Plugin API and SPI
