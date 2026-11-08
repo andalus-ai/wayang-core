@@ -11,11 +11,20 @@ The plugin manifest schema was copied from `andalus-ai/wayang` at source blob `b
 
 ## Golden fixtures
 
-- `plugin-manifest/v1/examples/valid-minimal.json` is a positive fixture using the current `apiVersion/kind/metadata/spec` layout.
-- `plugin-manifest/v1/examples/invalid-version.json` is a negative fixture; the plugin SemVer has an invalid leading zero.
-- `component-descriptor/0.1/examples/minimal.json` exercises the proposed Core descriptor shape.
+Positive compatibility fixtures:
 
-The Maven GitHub Actions workflow validates these fixtures with `check-jsonschema`. The negative fixture is required to fail validation.
+- `plugin-manifest/v1/examples/valid-minimal.json` covers the smallest valid `apiVersion/kind/metadata/spec` manifest.
+- `plugin-manifest/v1/examples/valid-with-dependency.json` covers multiple contributed components, prerelease SemVer, optional dependency declarations, and multiple permissions.
+
+Negative compatibility fixtures under `plugin-manifest/v1/examples/invalid/`:
+
+- `invalid-version.json` — rejects a plugin SemVer with an invalid leading zero.
+- `missing-publisher.json` — rejects a missing required publisher.
+- `invalid-component-id.json` — rejects a component ID outside the legacy identifier grammar.
+- `duplicate-permissions.json` — rejects duplicate permission declarations.
+- `unknown-root-property.json` — rejects unknown root-level fields.
+
+CI validates every positive fixture and requires every negative fixture to fail. Add a fixture whenever a compatibility edge or schema rule is changed. Do not delete or rewrite historical fixtures to make a new schema pass.
 
 ## Identifier compatibility
 
