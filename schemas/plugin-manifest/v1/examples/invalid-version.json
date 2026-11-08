@@ -1,0 +1,17 @@
+{
+  "apiVersion": "1.0",
+  "kind": "Plugin",
+  "metadata": {
+    "id": "acme.csv-tools",
+    "version": "01.2.3",
+    "publisher": "Acme"
+  },
+  "spec": {
+    "runtimeCompatibility": ">=0.0.1",
+    "provides": {
+      "components": [
+        { "id": "acme.csv-reader", "version": "1.0.0" }
+      ]
+    }
+  }
+}
