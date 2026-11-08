@@ -213,3 +213,33 @@ The repository has a concrete `META-INF/services/tech.kayys.wayang.runtime.Wayan
 ### C1 status
 
 The principal public contracts, capability model, manifest validator, package registry, one concrete provider registration, relevant characterization tests, and Console management protocol/REST inventory boundary have now been traced. Remaining work is narrower: exhaustive runtime call-site tracing, identify any non-runtime parser/serializer or schema validation wiring, inspect generated protobuf build integration and any actual gRPC service implementation, and verify native packaging behavior. No code/test execution is claimed by this documentation update.
+
+## Core model compatibility review — do not add a naive legacy mapper
+
+The current Core Java model and proposed schemas were inspected after the Wayang source audit. They are intentionally richer and not structurally identical to the existing Wayang runtime types.
+
+| Legacy Wayang source | Core candidate | Mapping status | Required treatment |
+|---|---|---|---|
+| PluginManifest | PluginDescriptor | Partial / lossy | Legacy manifest has API version, runtime compatibility, component inventory, dependencies, permissions and license. Core adds required display name, plugin API range, optional digest and namespaced metadata. Preserve original API version and nested v1 schema; add an explicit legacy projection policy for absent Core fields. |
+| ComponentDescriptor | Core ComponentDescriptor | Semantic mismatch | Legacy has executor family, profile features, component dependencies, isolation level, capability strings, config schema and UI hints. Core has typed ports, configuration schema ref and typed execution capabilities, but does not currently model executor family, profile feature requirements, component dependency ranges or UI hints. Do not silently discard these fields during migration. |
+| ComponentExecutionCapabilities | Core ComponentExecutionCapabilities | Partial | Core captures supported modes, state model, payload portability, cancellation and idempotency. Legacy additionally has affinity key, required capabilities and resource hints. Decide whether these are runtime scheduling metadata, portable descriptor extensions or intentionally host-only. |
+| PluginRegistry | No direct Core equivalent | Intentionally host-owned | Keep dependency resolution, package catalog, component ownership, installed-state semantics and registry operations in Wayang. Core should own values/schema only. |
+| WayangExtension | Proposed PluginDescriptorProvider | Not equivalent | Extension contributes executable connectors, pollers, webhook providers and handlers as well as metadata. Preserve host SPI and project only metadata. |
+
+### Required mapping rules
+
+- Treat the existing Wayang v1 plugin manifest as a stable external wire contract. Core's PluginDescriptor is not a replacement serialization model for it.
+- Never invent Core displayName, plugin API range, artifact digest, ports, state model, or execution modes from unrelated legacy fields. A projection must use documented defaults or report that a field is unavailable.
+- Preserve executor family, profile requirements, component dependencies, isolation level, UI hints, affinity and resource hints through a versioned extension field or a Wayang-owned sidecar until Core has explicit reviewed fields for them.
+- Do not convert legacy isolation enum values directly to Core execution modes without a compatibility table and deployment semantics. For example, REMOTE is not automatically equivalent to CLOUD_NATIVE.
+- Keep runtime live state (health, availability, worker load, observed deployment) out of static component descriptors and in Console/runtime inventory.
+- Add round-trip and loss-reporting tests. The first adapter may be read-only projection for UI/catalog consumption; it must not claim lossless round-trip compatibility.
+
+### C2/C3 implementation gate
+
+Before a production adapter is merged:
+1. Agree whether Core model is allowed to evolve to represent the missing stable legacy fields or whether they remain namespaced Wayang metadata.
+2. Define required/optional/default behavior for every field in the mapping.
+3. Add golden fixtures for the exact v1 manifest and a representative legacy component descriptor.
+4. Add tests that prove no legacy field is silently lost, and that unsupported mappings fail or produce an explicit diagnostic.
+5. Keep the adapter in a Wayang-owned module; Core must not depend on Wayang runtime classes.
