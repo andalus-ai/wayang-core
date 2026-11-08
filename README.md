@@ -73,3 +73,10 @@ mvn --batch-mode verify
 ```
 
 The Maven CI workflow runs the same verification on pushes and pull requests.
+
+
+## Schemas and compatibility
+
+The existing Wayang plugin manifest is preserved at [schemas/plugin-manifest/v1](schemas/plugin-manifest/v1/schema.json) as a JSON Schema 2020-12 compatibility baseline. Positive and negative golden fixtures are validated in CI. The separate [Core component descriptor schema](schemas/component-descriptor/0.1/schema.json) is experimental and is not yet the canonical JSON serialization of any existing Wayang Java class.
+
+See [schema governance](docs/schemas/SCHEMA-GOVERNANCE.md) before changing a schema or fixture.

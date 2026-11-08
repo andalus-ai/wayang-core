@@ -1,4 +1,4 @@
-name: Maven CI
+name: Maven and schema CI
 
 on:
   push:
@@ -19,5 +19,18 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - name: Verify reactor
+      - name: Verify Maven reactor
         run: mvn --batch-mode --no-transfer-progress verify
+      - name: Install JSON Schema validator
+        run: python -m pip install --disable-pip-version-check check-jsonschema
+      - name: Validate legacy manifest golden fixture
+        run: check-jsonschema --schemafile schemas/plugin-manifest/v1/schema.json schemas/plugin-manifest/v1/examples/valid-minimal.json
+      - name: Ensure invalid legacy manifest is rejected
+        shell: bash
+        run: |
+          if check-jsonschema --schemafile schemas/plugin-manifest/v1/schema.json schemas/plugin-manifest/v1/examples/invalid-version.json; then
+            echo "Invalid manifest unexpectedly passed schema validation"
+            exit 1
+          fi
+      - name: Validate proposed component descriptor fixture
+        run: check-jsonschema --schemafile schemas/component-descriptor/0.1/schema.json schemas/component-descriptor/0.1/examples/minimal.json
