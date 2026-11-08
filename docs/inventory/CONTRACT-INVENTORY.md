@@ -123,3 +123,52 @@ Reviewed directly from the Wayang `main` source tree on 2026-11-08. These observ
 - [ ] Inspect Console management client/server adapters and generated protobuf configuration.
 - [ ] Add characterization fixtures before declaring the Core schema or Java model wire-compatible.
 
+
+
+## Follow-up audit — capabilities, manifest validation and real provider registration
+
+The repository's recursive Git tree and targeted source/test inspection found the following additional evidence.
+
+### Execution capability contract
+
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/ComponentExecutionCapabilities.java` declares an exact component ID/version, supported execution modes, state model, portable-payload flag, cancellation/idempotency flags, optional affinity key, required capabilities and resource hints.
+- Its constructor rejects empty modes, requires an affinity key only for `AFFINE` state, and requires portable payloads for `REMOTE` and `CLOUD_NATIVE`.
+- `ComponentExecutionCapabilityRegistry.of(...)` verifies that every declaration references an available component at the exact version and rejects duplicate declarations.
+- Missing declarations preserve legacy embedded behavior only; they do not imply remote support. This is explicitly covered by `ComponentExecutionCapabilitiesTest`.
+
+**Extraction implication:** the immutable declaration is a strong Core model candidate. The registry's relationship to Wayang's profile-scoped component catalog remains host behavior. Keep the distinction between declared capability and authorization/placement decision.
+
+### Manifest validation and schema mapping
+
+- `PluginManifestValidator.validateComponents(...)` compares the manifest's declared component ID/version set with supplied `ComponentDescriptor` values, rejects duplicates and mismatches, and returns the supplied descriptors.
+- The validator explicitly documents that this is a consistency check, not signature verification.
+- `wayang-runtime/src/main/resources/schema/wayang-plugin-manifest.schema.json` defines JSON Schema Draft 2020-12 with ID `https://wayang.ai/schemas/plugin-manifest-1.0.json`. Its wire shape is nested as `apiVersion`, `kind`, `metadata` and `spec`.
+- The Java `PluginManifest` record is a flattened in-memory model with fields such as `id`, `version`, `publisher`, `runtimeCompatibility`, `components`, `dependencies` and `permissions`.
+
+**Critical compatibility finding:** the Java record field layout is not the JSON schema layout. Do not serialize the record directly by field name and assume it implements the manifest schema. Core extraction must preserve the schema as canonical and define/test an explicit mapper. Do not change the existing schema ID or nesting as part of a refactor.
+
+### Concrete ServiceLoader provider
+
+- `wayang-multimodal/src/main/resources/META-INF/services/tech.kayys.wayang.runtime.WayangExtension` registers `tech.kayys.wayang.multimodal.MultimodalExtension`.
+- `wayang-multimodal/src/main/java/tech/kayys/wayang/multimodal/MultimodalExtension.java` implements `WayangExtension`, requires the MEDIA profile feature, contributes connector implementations and contributes four component descriptors.
+- Its connector contribution constructs `UrlGuard` and `MediaStore` using environment configuration. This is executable host contribution behavior, not pure metadata authoring.
+
+This is direct evidence that `WayangExtension` cannot be reduced to a descriptor provider without losing runtime contributions. Any adapter must preserve connector/handler contributions and only project the metadata subset to Core.
+
+### Characterization tests located
+
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/PluginManifestTest.java` covers manifest validation, duplicate inventory, SemVer and permission validation, plus manifest-to-descriptor inventory consistency.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentRegistryTest.java` covers dependency closure, profile filtering, duplicate IDs, cycles, extension metadata contribution and built-in catalog composition.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentExecutorCatalogTest.java` covers exact executor binding, missing dependency executors, version/family mismatch and unselected/duplicate bindings.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/ComponentExecutionCapabilitiesTest.java` covers remote payload portability, affinity, exact component version, duplicate declarations and missing metadata behavior.
+
+These are existing source tests, not tests run as part of this documentation update.
+
+### Updated remaining audit gaps
+
+- [ ] Trace every construction and consumer of extension/descriptor/executor types beyond the test coverage and multimodal provider identified above.
+- [ ] Inspect the concrete manifest parser and serialization mapper (if present), plus the schema-validation invocation path.
+- [ ] Inspect all service registration files and verify provider loading in packaged JVM and Quarkus native builds.
+- [ ] Inspect Console management client/server adapters and generated protobuf configuration.
+- [ ] Add JSON golden fixtures that prove the Java model maps to the nested v1 manifest schema.
+- [ ] Add a Core/Wayang consumer compatibility test before extracting any public type.
