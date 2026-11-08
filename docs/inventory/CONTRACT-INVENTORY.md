@@ -172,3 +172,44 @@ These are existing source tests, not tests run as part of this documentation upd
 - [ ] Inspect Console management client/server adapters and generated protobuf configuration.
 - [ ] Add JSON golden fixtures that prove the Java model maps to the nested v1 manifest schema.
 - [ ] Add a Core/Wayang consumer compatibility test before extracting any public type.
+
+
+## Follow-up audit — plugin package catalog and standalone Console protocol
+
+### Existing Wayang plugin package registry
+
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/PluginRegistry.java` is an immutable catalog over `PluginPackage` values. It indexes plugins and component ownership, rejects duplicate plugin IDs and component ownership conflicts, validates required/optional plugin dependencies and version constraints, and resolves requested plugins in deterministic dependency-first order.
+- `PluginRegistry.PluginPackage` validates its component list against the manifest through `PluginManifestValidator.validateComponents`.
+- Its bounded version-range implementation supports exact versions, wildcard, caret, tilde and numeric comparator conjunctions.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/PluginRegistryTest.java` covers dependency order, missing/incompatible and optional dependencies, cycles, duplicate plugin IDs, component ownership conflicts and unsupported range syntax.
+
+**Boundary:** this is the catalog/validation layer, not artifact acquisition, signature verification, classloader creation, activation, process supervision or remote placement. Core should not duplicate it. If shared semantics are extracted later, move only portable manifest/package/dependency value contracts and keep this resolver/catalog host-side until cross-runtime use cases justify a shared resolver.
+
+### Console remains a separate control plane
+
+Inspected `andalus-ai/wayang-console`:
+
+- `contracts/proto/wayang/management/v1/management.proto` defines `RuntimeManagement` RPCs: Register, Heartbeat, ReportInventory, PollCommands and AcknowledgeCommand. Its package and Java package are `wayang.management.v1` and `ai.wayang.console.contracts.management.v1`.
+- The protobuf inventory model currently reports coarse `ComponentCapability(component_id, version, capability)` values and workflow references. It does not transfer plugin manifests, plugin artifacts, signatures, extension classes or activation requests.
+- The backend implementation inspected is REST-based: `RuntimeRegistryResource` exposes enrollment, heartbeat and inventory endpoints; `RuntimeRegistryService` owns enrollment/registration credentials and leases; `RuntimeInventoryService` replaces the runtime's reported component capability and workflow inventory.
+- `RuntimeInventoryService` validates required fields and caps each inventory collection at 1000 entries. The Console stores inventory as observed runtime capability data, not as an artifact installation catalog.
+
+**Boundary:** Console is a standalone management/control plane. It can observe deployed runtime inventory and issue management commands, but the inspected inventory API is not a plugin installer. Plugin installation and activation remain runtime/deployment responsibilities. The protobuf contract and REST backend are distinct surfaces; do not claim the protobuf RPCs are wired to the REST implementation without verifying a gRPC server adapter.
+
+### Manifest parsing and packaging findings
+
+The recursive source tree contains the Java manifest model, validator, and JSON Schema, but no dedicated manifest parser/serializer class or explicit schema-validation invocation was found in the runtime source paths inspected. The manifest Java record and nested JSON Schema therefore remain separate artifacts until a concrete mapper is identified or added.
+
+The repository has a concrete `META-INF/services/tech.kayys.wayang.runtime.WayangExtension` registration in `wayang-multimodal`. JVM ServiceLoader behavior is established by source. Quarkus native inclusion/registration behavior has not been verified and must be covered by native packaging tests or Quarkus build-time registration metadata.
+
+### Updated migration decision
+
+1. Keep `PluginRegistry`, `ComponentRegistry`, `ComponentExecutorCatalog`, and the `WayangExtension` SPI in Wayang runtime.
+2. Extract only portable descriptor/manifest/capability value models and schema governance into Core, with explicit JSON mapping and golden fixtures.
+3. Add a Wayang-owned projection adapter that converts legacy extension contributions into Core metadata while leaving executable connector/handler contributions attached to the original extension.
+4. Keep Console management protocol independent from plugin author and worker execution protocols. Extend its inventory only when a concrete management use case requires richer plugin/package identity.
+5. Do not implement hot install in Quarkus native by assuming runtime `ServiceLoader` can load arbitrary new classes. Runtime loading strategy must be selected per deployment mode: build-time packaged, JVM isolated classloader, separate process/container, or remote worker.
+
+### C1 status
+
+The principal public contracts, capability model, manifest validator, package registry, one concrete provider registration, relevant characterization tests, and Console management protocol/REST inventory boundary have now been traced. Remaining work is narrower: exhaustive runtime call-site tracing, identify any non-runtime parser/serializer or schema validation wiring, inspect generated protobuf build integration and any actual gRPC service implementation, and verify native packaging behavior. No code/test execution is claimed by this documentation update.
