@@ -243,3 +243,20 @@ Before a production adapter is merged:
 3. Add golden fixtures for the exact v1 manifest and a representative legacy component descriptor.
 4. Add tests that prove no legacy field is silently lost, and that unsupported mappings fail or produce an explicit diagnostic.
 5. Keep the adapter in a Wayang-owned module; Core must not depend on Wayang runtime classes.
+
+
+### Console artifact supply chain — important distinction
+
+A further review of the Console README and M1.8 implementation clarifies that Console does have artifact supply-chain responsibilities, beyond runtime inventory:
+
+- `ArtifactRegistryService` accepts scoped artifact registration, enforces a configured size limit, verifies SHA-256 content digest and Ed25519 signature over the artifact/manifest digest tuple, stores artifact metadata, and provides runtime-scoped artifact downloads.
+- `ArtifactResource` exposes operator upload and authenticated runtime download endpoints.
+- `DeploymentLifecycleService` records deployment metadata and can require a registered artifact with a matching manifest digest when configured.
+- Console documentation explicitly leaves runtime-side signature verification and applying the package to the runtime as runtime responsibilities.
+
+Therefore distinguish three separate operations:
+1. **Console supply chain:** artifact registration, signature/digest verification at intake, scoped storage and authenticated delivery.
+2. **Deployment control plane:** deployment records, lifecycle transitions and management command delivery.
+3. **Runtime plugin lifecycle:** package validation at the runtime, compatibility resolution, code loading, activation, executor binding and safe deactivation.
+
+Console may distribute a signed package and request a deployment, but that does not make it the plugin classloader or execution host. The earlier statement that Console inventory is not an artifact installer remains correct but incomplete if generalized to all Console capabilities; Console does provide artifact storage/distribution and deployment metadata services.
