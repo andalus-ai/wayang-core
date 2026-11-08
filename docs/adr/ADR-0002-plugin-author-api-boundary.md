@@ -11,7 +11,7 @@ Wayang needs an extensible plugin mechanism across standalone, embedded, distrib
 
 The current Wayang contract documentation identifies `WayangExtension`, `Extensions`, `ComponentExecutor`, `ComponentExecutorCatalog`, `ComponentRegistry`, `PluginManifest` and `PluginManifestValidator`. It describes `ServiceLoader` as startup/classpath discovery and explicitly defers package installation, signature verification, dependency installation, placement and dynamic loading.
 
-The source-level inventory is not yet complete: exact Java source paths, public signatures, service registration files and downstream usage sites still need to be traced. This ADR therefore decides the boundary, not a drop-in replacement API.
+The source audit has now traced the exact public contracts for `WayangExtension`, `Extensions`, `ComponentDescriptor`, `ComponentRegistry`, `ComponentExecutor`, `ComponentExecutorRegistry`, `ComponentExecutorCatalog` and `PluginManifest` (see `docs/inventory/CONTRACT-INVENTORY.md`). It confirms that `WayangExtension` is a broad host SPI discovered through startup `ServiceLoader`, while the component registry/catalog only resolve metadata and validate supplied executor bindings. Consumer usage sites, service registration files, manifest serialization and Console adapters remain untraced. This ADR therefore decides the boundary, not a drop-in replacement API.
 
 ## Decision
 
@@ -72,8 +72,8 @@ Consumes manifest and inventory metadata only. It must not instantiate Java plug
 
 ## Compatibility and migration
 
-1. Preserve existing `WayangExtension` and `ServiceLoader` behavior until the source inventory and compatibility tests prove a safe adapter.
-2. Do not make `wayang-core-model` depend on the new API module; the dependency direction is API -> model.
+1. Preserve existing `WayangExtension` and `ServiceLoader` behavior. The preferred first adapter is a Wayang-owned projection from legacy extension metadata into Core descriptors; do not require existing plugins to implement a second provider interface.
+2. Do not move `ComponentExecutor`, `ComponentExecutorRegistry` or `ComponentExecutorCatalog` into Core as-is: they depend on Wayang execution request/result types and runtime binding semantics. A future portable worker protocol is a separate contract family.
 3. Do not force existing plugins to implement a second provider interface in the first migration.
 4. A Wayang adapter may derive Core descriptors from legacy extension metadata while old and new contracts coexist.
 5. Avoid reflection-based magic and implicit classpath scanning beyond documented provider mechanisms.
