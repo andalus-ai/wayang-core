@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["id", "version", "kind", "displayName", "execution"],
   "properties": {
-    "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$" },
+    "id": { "type": "string", "pattern": "^(?:[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+|[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*:[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*)$" },
     "version": { "$ref": "#/$defs/semver" },
     "kind": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
     "displayName": { "type": "string", "minLength": 1 },
