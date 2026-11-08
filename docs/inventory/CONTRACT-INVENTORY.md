@@ -172,3 +172,91 @@ These are existing source tests, not tests run as part of this documentation upd
 - [ ] Inspect Console management client/server adapters and generated protobuf configuration.
 - [ ] Add JSON golden fixtures that prove the Java model maps to the nested v1 manifest schema.
 - [ ] Add a Core/Wayang consumer compatibility test before extracting any public type.
+
+
+## Follow-up audit — plugin package catalog and standalone Console protocol
+
+### Existing Wayang plugin package registry
+
+- `wayang-runtime/src/main/java/tech/kayys/wayang/runtime/PluginRegistry.java` is an immutable catalog over `PluginPackage` values. It indexes plugins and component ownership, rejects duplicate plugin IDs and component ownership conflicts, validates required/optional plugin dependencies and version constraints, and resolves requested plugins in deterministic dependency-first order.
+- `PluginRegistry.PluginPackage` validates its component list against the manifest through `PluginManifestValidator.validateComponents`.
+- Its bounded version-range implementation supports exact versions, wildcard, caret, tilde and numeric comparator conjunctions.
+- `wayang-runtime/src/test/java/tech/kayys/wayang/runtime/PluginRegistryTest.java` covers dependency order, missing/incompatible and optional dependencies, cycles, duplicate plugin IDs, component ownership conflicts and unsupported range syntax.
+
+**Boundary:** this is the catalog/validation layer, not artifact acquisition, signature verification, classloader creation, activation, process supervision or remote placement. Core should not duplicate it. If shared semantics are extracted later, move only portable manifest/package/dependency value contracts and keep this resolver/catalog host-side until cross-runtime use cases justify a shared resolver.
+
+### Console remains a separate control plane
+
+Inspected `andalus-ai/wayang-console`:
+
+- `contracts/proto/wayang/management/v1/management.proto` defines `RuntimeManagement` RPCs: Register, Heartbeat, ReportInventory, PollCommands and AcknowledgeCommand. Its package and Java package are `wayang.management.v1` and `ai.wayang.console.contracts.management.v1`.
+- The protobuf inventory model currently reports coarse `ComponentCapability(component_id, version, capability)` values and workflow references. It does not transfer plugin manifests, plugin artifacts, signatures, extension classes or activation requests.
+- The backend implementation inspected is REST-based: `RuntimeRegistryResource` exposes enrollment, heartbeat and inventory endpoints; `RuntimeRegistryService` owns enrollment/registration credentials and leases; `RuntimeInventoryService` replaces the runtime's reported component capability and workflow inventory.
+- `RuntimeInventoryService` validates required fields and caps each inventory collection at 1000 entries. The Console stores inventory as observed runtime capability data, not as an artifact installation catalog.
+
+**Boundary:** Console is a standalone management/control plane. It can observe deployed runtime inventory and issue management commands, but the inspected inventory API is not a plugin installer. Plugin installation and activation remain runtime/deployment responsibilities. The protobuf contract and REST backend are distinct surfaces; do not claim the protobuf RPCs are wired to the REST implementation without verifying a gRPC server adapter.
+
+### Manifest parsing and packaging findings
+
+The recursive source tree contains the Java manifest model, validator, and JSON Schema, but no dedicated manifest parser/serializer class or explicit schema-validation invocation was found in the runtime source paths inspected. The manifest Java record and nested JSON Schema therefore remain separate artifacts until a concrete mapper is identified or added.
+
+The repository has a concrete `META-INF/services/tech.kayys.wayang.runtime.WayangExtension` registration in `wayang-multimodal`. JVM ServiceLoader behavior is established by source. Quarkus native inclusion/registration behavior has not been verified and must be covered by native packaging tests or Quarkus build-time registration metadata.
+
+### Updated migration decision
+
+1. Keep `PluginRegistry`, `ComponentRegistry`, `ComponentExecutorCatalog`, and the `WayangExtension` SPI in Wayang runtime.
+2. Extract only portable descriptor/manifest/capability value models and schema governance into Core, with explicit JSON mapping and golden fixtures.
+3. Add a Wayang-owned projection adapter that converts legacy extension contributions into Core metadata while leaving executable connector/handler contributions attached to the original extension.
+4. Keep Console management protocol independent from plugin author and worker execution protocols. Extend its inventory only when a concrete management use case requires richer plugin/package identity.
+5. Do not implement hot install in Quarkus native by assuming runtime `ServiceLoader` can load arbitrary new classes. Runtime loading strategy must be selected per deployment mode: build-time packaged, JVM isolated classloader, separate process/container, or remote worker.
+
+### C1 status
+
+The principal public contracts, capability model, manifest validator, package registry, one concrete provider registration, relevant characterization tests, and Console management protocol/REST inventory boundary have now been traced. Remaining work is narrower: exhaustive runtime call-site tracing, identify any non-runtime parser/serializer or schema validation wiring, inspect generated protobuf build integration and any actual gRPC service implementation, and verify native packaging behavior. No code/test execution is claimed by this documentation update.
+
+## Core model compatibility review — do not add a naive legacy mapper
+
+The current Core Java model and proposed schemas were inspected after the Wayang source audit. They are intentionally richer and not structurally identical to the existing Wayang runtime types.
+
+| Legacy Wayang source | Core candidate | Mapping status | Required treatment |
+|---|---|---|---|
+| PluginManifest | PluginDescriptor | Partial / lossy | Legacy manifest has API version, runtime compatibility, component inventory, dependencies, permissions and license. Core adds required display name, plugin API range, optional digest and namespaced metadata. Preserve original API version and nested v1 schema; add an explicit legacy projection policy for absent Core fields. |
+| ComponentDescriptor | Core ComponentDescriptor | Semantic mismatch | Legacy has executor family, profile features, component dependencies, isolation level, capability strings, config schema and UI hints. Core has typed ports, configuration schema ref and typed execution capabilities, but does not currently model executor family, profile feature requirements, component dependency ranges or UI hints. Do not silently discard these fields during migration. |
+| ComponentExecutionCapabilities | Core ComponentExecutionCapabilities | Partial | Core captures supported modes, state model, payload portability, cancellation and idempotency. Legacy additionally has affinity key, required capabilities and resource hints. Decide whether these are runtime scheduling metadata, portable descriptor extensions or intentionally host-only. |
+| PluginRegistry | No direct Core equivalent | Intentionally host-owned | Keep dependency resolution, package catalog, component ownership, installed-state semantics and registry operations in Wayang. Core should own values/schema only. |
+| WayangExtension | Proposed PluginDescriptorProvider | Not equivalent | Extension contributes executable connectors, pollers, webhook providers and handlers as well as metadata. Preserve host SPI and project only metadata. |
+
+### Required mapping rules
+
+- Treat the existing Wayang v1 plugin manifest as a stable external wire contract. Core's PluginDescriptor is not a replacement serialization model for it.
+- Never invent Core displayName, plugin API range, artifact digest, ports, state model, or execution modes from unrelated legacy fields. A projection must use documented defaults or report that a field is unavailable.
+- Preserve executor family, profile requirements, component dependencies, isolation level, UI hints, affinity and resource hints through a versioned extension field or a Wayang-owned sidecar until Core has explicit reviewed fields for them.
+- Do not convert legacy isolation enum values directly to Core execution modes without a compatibility table and deployment semantics. For example, REMOTE is not automatically equivalent to CLOUD_NATIVE.
+- Keep runtime live state (health, availability, worker load, observed deployment) out of static component descriptors and in Console/runtime inventory.
+- Add round-trip and loss-reporting tests. The first adapter may be read-only projection for UI/catalog consumption; it must not claim lossless round-trip compatibility.
+
+### C2/C3 implementation gate
+
+Before a production adapter is merged:
+1. Agree whether Core model is allowed to evolve to represent the missing stable legacy fields or whether they remain namespaced Wayang metadata.
+2. Define required/optional/default behavior for every field in the mapping.
+3. Add golden fixtures for the exact v1 manifest and a representative legacy component descriptor.
+4. Add tests that prove no legacy field is silently lost, and that unsupported mappings fail or produce an explicit diagnostic.
+5. Keep the adapter in a Wayang-owned module; Core must not depend on Wayang runtime classes.
+
+
+### Console artifact supply chain — important distinction
+
+A further review of the Console README and M1.8 implementation clarifies that Console does have artifact supply-chain responsibilities, beyond runtime inventory:
+
+- `ArtifactRegistryService` accepts scoped artifact registration, enforces a configured size limit, verifies SHA-256 content digest and Ed25519 signature over the artifact/manifest digest tuple, stores artifact metadata, and provides runtime-scoped artifact downloads.
+- `ArtifactResource` exposes operator upload and authenticated runtime download endpoints.
+- `DeploymentLifecycleService` records deployment metadata and can require a registered artifact with a matching manifest digest when configured.
+- Console documentation explicitly leaves runtime-side signature verification and applying the package to the runtime as runtime responsibilities.
+
+Therefore distinguish three separate operations:
+1. **Console supply chain:** artifact registration, signature/digest verification at intake, scoped storage and authenticated delivery.
+2. **Deployment control plane:** deployment records, lifecycle transitions and management command delivery.
+3. **Runtime plugin lifecycle:** package validation at the runtime, compatibility resolution, code loading, activation, executor binding and safe deactivation.
+
+Console may distribute a signed package and request a deployment, but that does not make it the plugin classloader or execution host. The earlier statement that Console inventory is not an artifact installer remains correct but incomplete if generalized to all Console capabilities; Console does provide artifact storage/distribution and deployment metadata services.
