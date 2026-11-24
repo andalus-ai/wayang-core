@@ -22,6 +22,15 @@
 - [x] Define initial capability vocabulary, permission declarations and compatibility metadata.
 - [x] Add schema validation and golden fixtures for the legacy plugin manifest and proposed component descriptor.
 - [ ] Publish first explicitly experimental model/schema artifacts.
+- [ ] Stabilize the Agent Package schema after consumer mapping and package-lock semantics are verified.
+
+## C2.1 — Agent Package contract (experimental)
+- [x] Define a portable Agent Package manifest schema and positive/negative fixtures.
+- [x] Document package identity, agent definition, typed invocation interface, triggers, dependencies, configuration references, permissions, evaluations and package resources.
+- [x] Add schema fixture validation to Core CI.
+- [ ] Add a source-backed mapping/conformance test against Wayang `AgentSpec`.
+- [ ] Define deterministic package lock entries and dependency-resolution behavior.
+- [ ] Validate invocation input/output schemas in Wayang's agent adapters.
 
 ## C3 — Plugin API and SPI
 - [x] Propose the author API versus host discovery/activation SPI boundary (see [ADR-0002](adr/ADR-0002-plugin-author-api-boundary.md) and [design](plugin-api/PLUGIN-AUTHOR-API-DESIGN.md)); implementation remains gated on the incomplete C1 source audit.
