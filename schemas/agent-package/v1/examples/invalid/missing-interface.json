@@ -1,0 +1,17 @@
+{
+  "apiVersion": "1.0",
+  "kind": "AgentPackage",
+  "metadata": {
+    "id": "acme:broken-agent",
+    "version": "1.0.0",
+    "publisher": "acme:publisher",
+    "displayName": "Broken Agent"
+  },
+  "spec": {
+    "agentApiRange": "^1.0",
+    "agent": {
+      "id": "broken-agent",
+      "model": "openai/gpt-4o"
+    }
+  }
+}
