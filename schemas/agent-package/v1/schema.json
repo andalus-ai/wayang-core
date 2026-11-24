@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wayang.ai/schemas/agent-package-1.0.json",
+  "title": "Wayang Agent Package Manifest",
+  "description": "Portable, immutable marketplace package metadata and declarative agent definition. This is not an executable plugin manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "1.0" },
+    "kind": { "const": "AgentPackage" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "publisher", "displayName"],
+      "properties": {
+        "id": { "$ref": "#/$defs/namespacedId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "publisher": { "$ref": "#/$defs/namespacedId" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 4000 },
+        "license": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 48 },
+          "maxItems": 30
+        },
+        "icon": { "type": "string", "description": "Relative package path or approved HTTPS asset reference; never an executable URL." }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agentApiRange", "agent", "interface"],
+      "properties": {
+        "agentApiRange": { "type": "string", "minLength": 1 },
+        "runtimeCompatibility": { "type": "string", "minLength": 1 },
+        "agent": { "$ref": "#/$defs/agentDefinition" },
+        "interface": { "$ref": "#/$defs/agentInterface" },
+        "triggers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["chat", "api", "webhook", "schedule", "event"] }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dependency" }
+        },
+        "configuration": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/configurationRequirement" }
+        },
+        "requestedPermissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*:[A-Za-z0-9._*:/-]+$" }
+        },
+        "evaluation": { "$ref": "#/$defs/evaluation" },
+        "resources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resource" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "namespacedId": {
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*:[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "agentDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "model"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "model": { "type": "string", "minLength": 1 },
+        "systemPrompt": { "type": "string", "maxLength": 100000 },
+        "inputTemplate": { "type": "string", "maxLength": 20000 },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "type": { "type": "string", "maxLength": 128 },
+              "description": { "type": "string", "maxLength": 2000 },
+              "config": {
+                "type": "object",
+                "description": "Declarative configuration only. Secret values are forbidden; use explicit secret references resolved at installation/runtime."
+              }
+            }
+          }
+        },
+        "maxSteps": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 120 },
+        "requireApproval": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "outputKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "options": {
+          "type": "object",
+          "description": "Agent runtime options. Known persona and guardrails fields are described below; extension options must be namespaced by their owner.",
+          "properties": {
+            "persona": { "$ref": "#/$defs/persona" },
+            "guardrails": { "$ref": "#/$defs/guardrails" }
+          }
+        }
+      }
+    },
+    "persona": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "maxLength": 200 },
+        "tone": { "type": "string", "maxLength": 200 },
+        "language": { "type": "string", "maxLength": 200 },
+        "boundaries": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      },
+      "minProperties": 1
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxOutputChars": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "redact": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["email", "phone", "card"] }
+        },
+        "blockedTerms": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "minProperties": 1
+    },
+    "agentInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputSchema", "outputSchema"],
+      "properties": {
+        "inputSchema": { "type": "object", "description": "JSON Schema Draft 2020-12 describing the public invocation input." },
+        "outputSchema": { "type": "object", "description": "JSON Schema Draft 2020-12 describing the public invocation result." }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "versionRange", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/namespacedId" },
+        "versionRange": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["agent", "skill", "extension", "workflow-template", "solution"] },
+        "optional": { "type": "boolean", "default": false }
+      }
+    },
+    "configurationRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "required"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,127}$" },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "kind": { "enum": ["secret-reference", "connection-reference", "value"] },
+        "required": { "type": "boolean" },
+        "schema": { "type": "object", "description": "JSON Schema for non-secret configuration values." }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requiredBeforePublish": { "type": "boolean", "default": false },
+        "suites": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resource" }
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mediaType"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "mediaType": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "role": { "type": "string", "maxLength": 64 }
+      }
+    }
+  }
+}
