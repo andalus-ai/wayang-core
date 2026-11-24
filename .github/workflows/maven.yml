@@ -41,3 +41,19 @@ jobs:
           done
       - name: Validate proposed component descriptor fixture
         run: check-jsonschema --schemafile schemas/component-descriptor/0.1/schema.json schemas/component-descriptor/0.1/examples/minimal.json
+      - name: Validate positive agent package fixtures
+        run: |
+          check-jsonschema --schemafile schemas/agent-package/v1/schema.json \
+            schemas/agent-package/v1/examples/valid-minimal.json \
+            schemas/agent-package/v1/examples/valid-with-dependencies.json
+      - name: Ensure every negative agent package fixture is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          for fixture in schemas/agent-package/v1/examples/invalid/*.json; do
+            echo "Expecting schema rejection: $fixture"
+            if check-jsonschema --schemafile schemas/agent-package/v1/schema.json "$fixture"; then
+              echo "Invalid agent package unexpectedly passed schema validation: $fixture"
+              exit 1
+            fi
+          done
